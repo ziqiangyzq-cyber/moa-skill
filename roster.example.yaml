@@ -1,0 +1,38 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# MoA roster — copy this file to `roster.yaml` and fill in YOUR OWN models.
+#
+# PRINCIPLE: pick models from DIFFERENT VENDORS / LINEAGES.
+#   Same-vendor models share training data and RLHF, so their errors correlate —
+#   they are blind in the same places, which is exactly what a Mixture-of-Agents
+#   is supposed to catch. Lineage diversity beats raw strength. A committee of
+#   three same-vendor models is an expensive echo chamber.
+#   Good default shape: one OpenAI + one Anthropic + one Google (or xAI).
+#
+# SECURITY: NEVER put API keys or secret endpoints in this file. Keys live inside
+#   your adapter script or its environment. `roster.yaml` is gitignored, but treat
+#   this format as if it could be committed.
+# ─────────────────────────────────────────────────────────────────────────────
+
+workers:
+  - name: w-openai
+    vendor: openai          # lineage tag — the preflight diversity check reads this
+    adapter: adapters/openai.sh
+    role: [propose, critique]
+
+  - name: w-anthropic
+    vendor: anthropic
+    adapter: adapters/anthropic.sh
+    role: [propose, critique, aggregate]
+
+  - name: w-google
+    vendor: google
+    adapter: adapters/gemini.sh
+    role: [propose, critique]
+
+# Who merges the proposals into the draft and the final answer.
+# Pick your most capable instruction-follower; it needs long context + orchestration.
+aggregator: w-anthropic
+
+# Who reviews the FINAL merge for distortion / dropped points / lineage bias.
+# MUST be a DIFFERENT vendor than `aggregator`, or the cross-vendor check is void.
+final_review: w-openai

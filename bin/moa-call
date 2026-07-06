@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# moa-call — invoke one worker adapter with a timeout and an integrity check.
+#
+# Usage:   bin/moa-call <adapter> < prompt.txt
+# Reads:   the full prompt on stdin (never as an argument — safe for quotes/newlines).
+# Writes:  the model's answer on stdout.
+# Exits:   0 on a non-empty answer; non-zero on timeout, adapter error, or empty output.
+#          The orchestrator's integrity gate relies on this exit code — do not swallow it.
+#
+# Env:     MOA_TIMEOUT   seconds before giving up (default 90)
+set -u
+
+adapter="${1:?usage: moa-call <adapter> < prompt.txt}"
+timeout_s="${MOA_TIMEOUT:-90}"
+
+if [ ! -x "$adapter" ]; then
+  echo "moa-call: adapter not executable: $adapter" >&2
+  exit 3
+fi
+
+# Prefer coreutils `timeout`; fall back to gtimeout (macOS/brew) or no timeout.
+if command -v timeout >/dev/null 2>&1; then
+  runner=(timeout "$timeout_s" "$adapter")
+elif command -v gtimeout >/dev/null 2>&1; then
+  runner=(gtimeout "$timeout_s" "$adapter")
+else
+  echo "moa-call: no timeout binary found; running without a timeout" >&2
+  runner=("$adapter")
+fi
+
+out="$("${runner[@]}")"
+rc=$?
+
+if [ $rc -eq 124 ]; then
+  echo "moa-call: adapter timed out after ${timeout_s}s: $adapter" >&2
+  exit 124
+fi
+if [ $rc -ne 0 ]; then
+  echo "moa-call: adapter failed (exit $rc): $adapter" >&2
+  exit $rc
+fi
+if [ -z "${out//[$'\t\r\n ']/}" ]; then
+  echo "moa-call: adapter returned empty output: $adapter" >&2
+  exit 5
+fi
+
+printf '%s\n' "$out"

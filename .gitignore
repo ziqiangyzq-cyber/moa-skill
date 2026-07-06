@@ -1,0 +1,19 @@
+# Your private roster (your models) — NEVER commit
+roster.yaml
+
+# Your real adapters (may contain endpoints); keep only examples/ in git
+adapters/*.sh
+!adapters/examples/*.sh
+
+# Run artifacts (raw transcripts, may contain sensitive question context)
+runs/
+
+# Secrets / env
+.env
+*.env
+*.key
+secrets*
+
+# OS / editor cruft
+.DS_Store
+*.swp
