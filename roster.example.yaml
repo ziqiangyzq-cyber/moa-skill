@@ -21,6 +21,10 @@ workers:
 
   - name: w-anthropic
     vendor: anthropic
+    # If you run this skill INSIDE Claude Code, a Claude worker can be spawned by the
+    # orchestrator's Agent tool instead of a shell adapter — use `adapter: agent:opus`
+    # (or agent:sonnet). No API key or adapter file needed. Otherwise point to a real
+    # adapter script as below.
     adapter: adapters/anthropic.sh
     role: [propose, critique, aggregate]
 

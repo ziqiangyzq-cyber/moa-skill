@@ -133,13 +133,25 @@ def main():
 
     active = [w for w in workers
               if any(r in (w.get("role") or []) for r in ("propose", "critique"))]
-    vendors = {w.get("vendor", "?") for w in active}
-    if len(vendors) < 2:
-        v = next(iter(vendors)) if vendors else "?"
+    vendors = [w.get("vendor", "?") for w in active]
+    distinct = set(vendors)
+    if len(distinct) < 2:
+        v = next(iter(distinct)) if distinct else "?"
         warnings.append(
             f"ALL {len(active)} active workers are vendor={v}. Error-independence premise is "
             f"VOID — you are paying {len(active)}x for correlated answers that share the same "
             f"blind spots. Add a model from a different vendor.")
+    elif active:
+        # Weak-diversity check: one vendor holding a majority of slots is the "2-of-3
+        # same-family" case — >=2 vendors so it passes the hard check, but the majority
+        # lineage's blind spots dominate. Soft-warn so it isn't silently accepted.
+        top = max(distinct, key=vendors.count)
+        n_top = vendors.count(top)
+        if n_top * 2 > len(active):
+            warnings.append(
+                f"vendor={top} holds {n_top}/{len(active)} active slots — a majority. "
+                f"Diversity is weak: that lineage's blind spots dominate the committee "
+                f"(and the aggregator likely shares them). Prefer one model per vendor.")
 
     if aggregator and final_review:
         av = (by_name.get(aggregator) or {}).get("vendor")
@@ -154,11 +166,15 @@ def main():
 
     for w in workers:
         ad = w.get("adapter")
-        if ad and not os.path.exists(os.path.join(root, ad)) and not os.path.exists(ad):
+        # `agent:<model>` (or bare `agent`) = spawned by the orchestrator's Agent tool
+        # (Claude Code), not a shell adapter file — nothing to check on disk.
+        if not ad or ad == "agent" or ad.startswith("agent:"):
+            continue
+        if not os.path.exists(os.path.join(root, ad)) and not os.path.exists(ad):
             warnings.append(f"adapter not found for {w.get('name')}: {ad}")
 
     print(f"moa-preflight: {len(workers)} workers, {len(active)} active, "
-          f"{len(vendors)} distinct vendor(s).")
+          f"{len(distinct)} distinct vendor(s).")
     if warnings:
         for w in warnings:
             print(f"  ⚠  {w}")
