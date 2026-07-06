@@ -41,8 +41,7 @@ and the final merge — run through one orchestrator model. Passthrough closes t
 cross-vendor review closes most of the second. What remains: the merge still carries the
 orchestrator's lineage, and on pure-judgment questions where every model shares a bias with no
 external ground truth to probe, nothing here catches it — your own skepticism is the backstop.
-These are stated plainly in `SKILL.md → Known limits`. See `docs/DESIGN.md` for the full
-rationale and the multi-model design debate that produced it.
+These are stated plainly in `SKILL.md → Known limits`. See `docs/DESIGN.md` for the full rationale.
 
 ## Setup
 
