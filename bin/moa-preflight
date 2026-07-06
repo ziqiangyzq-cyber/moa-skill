@@ -3,15 +3,18 @@
 
 Usage:  bin/moa-preflight roster.yaml
 
-Checks (loud warnings, never a hard block unless the file is unreadable):
+Checks (loud warnings, never a hard block unless the file can't be parsed safely):
   1. Vendor diversity: the active propose/critique slots must span >=2 distinct vendors,
      or the whole error-independence premise is void and MoA degrades to an echo chamber.
   2. The `final_review` slot must be a DIFFERENT vendor than `aggregator`, or the
      cross-vendor review of the merge is meaningless.
   3. Adapter files exist.
 
-Dependency-free: parses only the small, flat subset of YAML this roster uses
-(no PyYAML required).
+Parsing: uses PyYAML if available (any valid YAML). If PyYAML is not installed, falls back
+to a minimal parser for the documented simple roster format — which REFUSES to guess on
+anything outside that format (flow maps, anchors, merge keys, a worker missing name/vendor)
+rather than silently mis-reading a safety-critical field. Install PyYAML for full YAML:
+`pip install pyyaml`.
 """
 import sys, os, re
 
@@ -19,17 +22,54 @@ def die(msg, code=2):
     print(f"moa-preflight: {msg}", file=sys.stderr)
     sys.exit(code)
 
-def parse_roster(path):
-    """Minimal parser for the documented roster shape. Returns (workers, aggregator, final_review)."""
+# ── Parsing ──────────────────────────────────────────────────────────────────
+def load_roster(path):
+    """Return (workers, aggregator, final_review). Prefer PyYAML; fall back to a
+    self-validating minimal parser that fails loud instead of guessing."""
     try:
-        lines = open(path, encoding="utf-8").read().splitlines()
+        raw = open(path, encoding="utf-8").read()
     except OSError as e:
         die(f"cannot read {path}: {e}")
-    workers, cur = [], None
-    aggregator = final_review = None
-    in_workers = False
-    for raw in lines:
-        line = raw.split("#", 1)[0].rstrip()          # strip comments
+    try:
+        import yaml  # PyYAML — handles any valid YAML
+    except ImportError:
+        return _minimal_parse(raw)
+    try:
+        data = yaml.safe_load(raw)
+    except yaml.YAMLError as e:
+        die(f"invalid YAML in {path}: {e}")
+    if not isinstance(data, dict):
+        die(f"{path}: top level must be a mapping (workers:/aggregator:/final_review:)")
+    return _normalize(data, path)
+
+def _normalize(data, path):
+    workers = data.get("workers") or []
+    if not isinstance(workers, list):
+        die(f"{path}: `workers` must be a list")
+    norm = []
+    for i, w in enumerate(workers):
+        if not isinstance(w, dict):
+            die(f"{path}: worker #{i+1} is not a mapping")
+        role = w.get("role") or []
+        if isinstance(role, str):
+            role = [role]
+        norm.append({"name": w.get("name"), "vendor": w.get("vendor"),
+                     "adapter": w.get("adapter"), "role": list(role)})
+    return norm, data.get("aggregator"), data.get("final_review")
+
+def _minimal_parse(raw):
+    """Minimal parser for the documented block format ONLY. Refuses anything else."""
+    # Reject constructs this parser cannot safely handle — do not guess.
+    for bad, label in (("&", "anchors"), ("*", "aliases"), ("<<", "merge keys")):
+        if re.search(rf"(^|\s){re.escape(bad)}\w", raw):
+            die(f"roster uses YAML {label}; install PyYAML (`pip install pyyaml`) "
+                f"or use the documented simple format", 3)
+    if raw.count("\n---") > 0:
+        die("multi-document YAML not supported by the fallback parser; install PyYAML", 3)
+
+    workers, cur, agg, fr, in_workers = [], None, None, None, False
+    for raw_line in raw.splitlines():
+        line = raw_line.split("#", 1)[0].rstrip()
         if not line.strip():
             continue
         if re.match(r"^workers:\s*$", line):
@@ -37,34 +77,60 @@ def parse_roster(path):
         m = re.match(r"^(aggregator|final_review):\s*(\S+)\s*$", line)
         if m:
             in_workers = False
-            if m.group(1) == "aggregator": aggregator = m.group(2)
-            else: final_review = m.group(2)
+            if m.group(1) == "aggregator": agg = m.group(2).strip('"\'')
+            else: fr = m.group(2).strip('"\'')
             continue
-        if in_workers:
-            if re.match(r"^\s*-\s", line):            # new worker item
-                cur = {}; workers.append(cur)
-                line = re.sub(r"^\s*-\s*", "  ", line)  # allow "- name: x" inline
-            m = re.match(r"^\s+(\w+):\s*(.+?)\s*$", line)
-            if m and cur is not None:
-                k, v = m.group(1), m.group(2)
-                if k == "role":
-                    v = [x.strip() for x in v.strip("[]").split(",") if x.strip()]
-                cur[k] = v
-    return workers, aggregator, final_review
+        if not in_workers:
+            continue
+        # Inline flow map: "- {name: a, vendor: b, adapter: c, role: [propose]}"
+        fm = re.match(r"^\s*-\s*\{(.+)\}\s*$", line)
+        if fm:
+            cur = {}; workers.append(cur)
+            for pair in re.split(r",\s*(?![^\[]*\])", fm.group(1)):
+                if ":" in pair:
+                    k, v = pair.split(":", 1)
+                    cur[k.strip()] = _scalar(v.strip())
+            continue
+        if re.match(r"^\s*-\s", line):            # new block worker item
+            cur = {}; workers.append(cur)
+            line = re.sub(r"^\s*-\s*", "  ", line)
+        m = re.match(r"^\s+([A-Za-z_]\w*):\s*(.*)$", line)
+        if m and cur is not None:
+            cur[m.group(1)] = _scalar(m.group(2))
+        elif line.strip() and cur is None:
+            die(f"fallback parser cannot read line: {line.strip()!r}; install PyYAML", 3)
 
+    # Self-validate: a safety check must not run on a half-parsed roster.
+    norm = []
+    for i, w in enumerate(workers):
+        name, vendor = w.get("name"), w.get("vendor")
+        if not name or not vendor:
+            die(f"worker #{i+1} is missing name/vendor after fallback parse "
+                f"(got {w!r}); install PyYAML (`pip install pyyaml`) for reliable parsing", 3)
+        role = w.get("role") or []
+        norm.append({"name": name, "vendor": vendor,
+                     "adapter": w.get("adapter"), "role": role})
+    return norm, agg, fr
+
+def _scalar(v):
+    v = v.strip()
+    if v.startswith("[") and v.endswith("]"):
+        return [x.strip().strip('"\'') for x in v[1:-1].split(",") if x.strip()]
+    return v.strip('"\'')
+
+# ── Checks ───────────────────────────────────────────────────────────────────
 def main():
     if len(sys.argv) != 2:
         die("usage: moa-preflight roster.yaml", 64)
     path = sys.argv[1]
     root = os.path.dirname(os.path.abspath(path))
-    workers, aggregator, final_review = parse_roster(path)
+    workers, aggregator, final_review = load_roster(path)
     if not workers:
         die("no workers found in roster", 2)
 
-    by_name = {w.get("name"): w for w in workers}
+    by_name = {w["name"]: w for w in workers}
     warnings = []
 
-    # 1. vendor diversity across active propose/critique slots
     active = [w for w in workers
               if any(r in (w.get("role") or []) for r in ("propose", "critique"))]
     vendors = {w.get("vendor", "?") for w in active}
@@ -75,7 +141,6 @@ def main():
             f"VOID — you are paying {len(active)}x for correlated answers that share the same "
             f"blind spots. Add a model from a different vendor.")
 
-    # 2. cross-vendor review must actually cross a vendor
     if aggregator and final_review:
         av = (by_name.get(aggregator) or {}).get("vendor")
         fv = (by_name.get(final_review) or {}).get("vendor")
@@ -87,14 +152,13 @@ def main():
     elif not final_review:
         warnings.append("no `final_review` slot set — the End-B cross-vendor merge check is off.")
 
-    # 3. adapters exist
     for w in workers:
         ad = w.get("adapter")
         if ad and not os.path.exists(os.path.join(root, ad)) and not os.path.exists(ad):
             warnings.append(f"adapter not found for {w.get('name')}: {ad}")
 
-    n = len({w.get("vendor") for w in active})
-    print(f"moa-preflight: {len(workers)} workers, {len(active)} active, {n} distinct vendor(s).")
+    print(f"moa-preflight: {len(workers)} workers, {len(active)} active, "
+          f"{len(vendors)} distinct vendor(s).")
     if warnings:
         for w in warnings:
             print(f"  ⚠  {w}")

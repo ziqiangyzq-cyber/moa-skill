@@ -52,7 +52,10 @@ These are stated plainly in `SKILL.md → Known limits`. See `docs/DESIGN.md` fo
 3. **Adapters** — for each model, copy an example from `adapters/examples/` to
    `adapters/<name>.sh`, set its endpoint/model, and export your API key in your environment
    (**never** in `roster.yaml`). See `adapters/README.md` for the 5-line contract.
-4. **Check** — `bin/moa-preflight roster.yaml` should report ≥2 distinct vendors.
+4. **Check** — `bin/moa-preflight roster.yaml` should report ≥2 distinct vendors. The
+   preflight uses [PyYAML](https://pypi.org/project/PyYAML/) if installed (recommended for
+   any non-trivial roster: `pip install pyyaml`); without it, it parses the simple documented
+   format and refuses loudly on anything fancier rather than risk mis-reading a vendor tag.
 5. **Use** — in Claude Code, write `moa <your hard question>`.
 
 ## Security
