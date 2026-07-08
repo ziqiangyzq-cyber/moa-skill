@@ -23,3 +23,13 @@ That's the whole contract. Invocation is always: `bin/moa-call adapters/yours.sh
 5. Smoke test: `echo "Say only: OK" | ./adapters/<name>.sh`
 
 Keep adapters from **different vendors** — that is the entire point of this tool.
+
+## Included examples
+
+- `examples/openai-compatible.sh` — any OpenAI-compatible HTTP endpoint or proxy
+- `examples/claude-code.sh` — local `claude` CLI worker
+- `examples/codex-cli.sh` — local `codex exec` worker
+- `examples/cli-wrapper.sh` — generic local CLI skeleton
+
+If your install path came from a GitHub ZIP or another copy step that dropped executable bits,
+run `bash scripts/bootstrap-local.sh` from the repo root before the first smoke test.

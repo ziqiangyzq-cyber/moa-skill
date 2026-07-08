@@ -47,16 +47,45 @@ These are stated plainly in `SKILL.md → Known limits`. See `docs/DESIGN.md` fo
 
 1. **Install** — place this directory where your Claude Code skills live (or point your skills
    config at it). The skill is named `moa`.
-2. **Roster** — `cp roster.example.yaml roster.yaml` and fill in *your own* models. Pick
+2. **Bootstrap** — if you installed from a GitHub ZIP or a tool that copied plain files, run
+   `bash scripts/bootstrap-local.sh` once. This restores executable bits that ZIP installs
+   commonly drop, and on machines that already have both `claude` and `codex` CLIs available
+   it can scaffold a minimal two-vendor local setup for you without touching existing private
+   files.
+3. **Roster** — `cp roster.example.yaml roster.yaml` and fill in *your own* models. Pick
    different vendors. `roster.yaml` is gitignored.
-3. **Adapters** — for each model, copy an example from `adapters/examples/` to
+4. **Adapters** — for each model, copy an example from `adapters/examples/` to
    `adapters/<name>.sh`, set its endpoint/model, and export your API key in your environment
-   (**never** in `roster.yaml`). See `adapters/README.md` for the 5-line contract.
-4. **Check** — `bin/moa-preflight roster.yaml` should report ≥2 distinct vendors. The
+   (**never** in `roster.yaml`). `adapters/examples/claude-code.sh` and
+   `adapters/examples/codex-cli.sh` are included for local CLI-based runs; the OpenAI-compatible
+   HTTP example remains available for remote or proxy-backed workers. See `adapters/README.md`
+   for the contract.
+5. **Check** — `bin/moa-preflight roster.yaml` should report ≥2 distinct vendors. The
    preflight uses [PyYAML](https://pypi.org/project/PyYAML/) if installed (recommended for
    any non-trivial roster: `pip install pyyaml`); without it, it parses the simple documented
    format and refuses loudly on anything fancier rather than risk mis-reading a vendor tag.
-5. **Use** — in Claude Code, write `moa <your hard question>`.
+6. **Use** — in Claude Code, write `moa <your hard question>`.
+
+## Local quick start
+
+If the machine already has both `claude` and `codex` CLIs working, this is enough:
+
+```bash
+bash scripts/bootstrap-local.sh
+bin/moa-preflight roster.yaml
+```
+
+The bootstrap script will:
+
+- restore executable bits on `bin/*` and example adapters
+- create `adapters/claude.sh` from `adapters/examples/claude-code.sh` if `claude` is installed
+- create `adapters/codex.sh` from `adapters/examples/codex-cli.sh` if `codex` is installed
+- create a minimal two-vendor `roster.yaml` if one does not exist yet
+
+Optional env vars for the local CLI adapters:
+
+- `MOA_CLAUDE_MODEL` to force a specific Claude model
+- `MOA_CODEX_MODEL` to force a specific Codex model
 
 ## Security
 
