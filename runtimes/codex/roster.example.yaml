@@ -1,0 +1,15 @@
+# Copy to roster.yaml and keep credentials in the environment, never here.
+# Use distinct vendors so proposal and critique errors remain independent.
+workers:
+  - name: codex
+    vendor: openai
+    adapter: adapters/codex.sh
+    role: [propose, critique, aggregate]
+
+  - name: claude
+    vendor: anthropic
+    adapter: adapters/claude.sh
+    role: [propose, critique, final_review]
+
+aggregator: codex
+final_review: claude

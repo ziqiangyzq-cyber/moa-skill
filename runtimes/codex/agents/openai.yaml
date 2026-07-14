@@ -1,0 +1,4 @@
+interface:
+  display_name: "MoA Committee"
+  short_description: "Multi-vendor committee for hard decisions"
+  default_prompt: "Use $moa to get a multi-vendor committee view on this hard decision."

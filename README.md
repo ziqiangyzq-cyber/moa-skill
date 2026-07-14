@@ -87,6 +87,28 @@ Optional env vars for the local CLI adapters:
 - `MOA_CLAUDE_MODEL` to force a specific Claude model
 - `MOA_CODEX_MODEL` to force a specific Codex model
 
+## Codex installation (isolated)
+
+The repository root remains the Claude-oriented skill. To compose a separate
+Codex-native installation with a tool-free Responses worker, run from a clean
+checkout:
+
+```bash
+bash scripts/install-codex.sh
+bash "${CODEX_HOME:-$HOME/.codex}/skills/moa/scripts/bootstrap-local.sh"
+"${CODEX_HOME:-$HOME/.codex}/skills/moa/bin/moa-preflight" \
+  "${CODEX_HOME:-$HOME/.codex}/skills/moa/roster.yaml"
+```
+
+The installer updates only repository-managed files. It preserves a real
+`roster.yaml`, `runs/`, and custom adapters. Do not symlink the Codex install to
+the Claude skill: separate copies prevent one runtime's roster and adapter
+changes from silently changing the other.
+
+The Codex Responses adapter reads the active Codex provider configuration and
+its environment-key credential. It sends no tools, stores no response, and
+rejects partial or otherwise non-completed results before they reach synthesis.
+
 ## Security
 
 API keys live in your adapters / environment, never in `roster.yaml`. `roster.yaml`, `runs/`,
