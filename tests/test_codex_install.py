@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -124,6 +125,43 @@ class CodexInstallTests(unittest.TestCase):
             )
             self.assertEqual(preflight.returncode, 0, preflight.stderr)
             self.assertIn("2 distinct vendor(s)", preflight.stdout)
+
+    def test_rejects_a_symbolic_link_destination(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            target = root / "claude-runtime"
+            target.mkdir()
+            sentinel = target / "SKILL.md"
+            sentinel.write_bytes(b"CLAUDE_SENTINEL\n")
+            destination = root / "codex-runtime"
+            destination.symlink_to(target, target_is_directory=True)
+
+            result = self.run_installer(destination)
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("symbolic link", result.stderr)
+            self.assertEqual(sentinel.read_bytes(), b"CLAUDE_SENTINEL\n")
+
+    def test_rejects_installing_over_the_source_checkout(self):
+        with tempfile.TemporaryDirectory() as temp:
+            checkout = Path(temp) / "checkout"
+            shutil.copytree(
+                ROOT,
+                checkout,
+                ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc"),
+            )
+            sentinel = (checkout / "SKILL.md").read_bytes()
+
+            result = subprocess.run(
+                [str(checkout / "scripts/install-codex.sh"), str(checkout)],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("source checkout", result.stderr)
+            self.assertEqual((checkout / "SKILL.md").read_bytes(), sentinel)
 
 
 if __name__ == "__main__":

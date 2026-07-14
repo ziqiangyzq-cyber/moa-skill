@@ -5,6 +5,25 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 destination="${1:-${CODEX_HOME:-$HOME/.codex}/skills/moa}"
 overlay="$root/runtimes/codex"
 
+if [ -L "$destination" ]; then
+  echo "install-codex: destination must not be a symbolic link: $destination" >&2
+  exit 3
+fi
+
+mkdir -p "$destination"
+root_real="$(cd "$root" && pwd -P)"
+destination_real="$(cd "$destination" && pwd -P)"
+if [ "$destination_real" = "/" ]; then
+  echo "install-codex: refusing to install over the filesystem root" >&2
+  exit 3
+fi
+case "$destination_real" in
+  "$root_real"|"$root_real"/*)
+    echo "install-codex: refusing to install over the source checkout: $destination" >&2
+    exit 3
+    ;;
+esac
+
 copy_file() {
   local source_path="$1"
   local destination_path="$2"
@@ -18,8 +37,6 @@ copy_tree() {
   mkdir -p "$destination/$destination_path"
   cp -R "$source_path/." "$destination/$destination_path/"
 }
-
-mkdir -p "$destination"
 
 copy_file "$root/.gitignore" ".gitignore"
 copy_file "$root/LICENSE" "LICENSE"
