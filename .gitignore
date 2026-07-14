@@ -17,3 +17,7 @@ secrets*
 # OS / editor cruft
 .DS_Store
 *.swp
+
+# Python test/build artifacts
+__pycache__/
+*.pyc

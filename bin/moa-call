@@ -18,30 +18,89 @@ if [ ! -x "$adapter" ]; then
   exit 3
 fi
 
-# Prefer coreutils `timeout`; fall back to gtimeout (macOS/brew) or no timeout.
-if command -v timeout >/dev/null 2>&1; then
-  runner=(timeout "$timeout_s" "$adapter")
-elif command -v gtimeout >/dev/null 2>&1; then
-  runner=(gtimeout "$timeout_s" "$adapter")
-else
-  echo "moa-call: no timeout binary found; running without a timeout" >&2
-  runner=("$adapter")
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "moa-call: python3 is required for reliable worker cleanup" >&2
+  exit 69
 fi
 
-out="$("${runner[@]}")"
-rc=$?
+exec python3 -c '
+import math
+import os
+import signal
+import subprocess
+import sys
+import time
 
-if [ $rc -eq 124 ]; then
-  echo "moa-call: adapter timed out after ${timeout_s}s: $adapter" >&2
-  exit 124
-fi
-if [ $rc -ne 0 ]; then
-  echo "moa-call: adapter failed (exit $rc): $adapter" >&2
-  exit $rc
-fi
-if [ -z "${out//[$'\t\r\n ']/}" ]; then
-  echo "moa-call: adapter returned empty output: $adapter" >&2
-  exit 5
-fi
+adapter = sys.argv[2]
+try:
+    timeout_s = float(sys.argv[1])
+    if not math.isfinite(timeout_s) or timeout_s <= 0:
+        raise ValueError
+except ValueError:
+    print(f"moa-call: invalid MOA_TIMEOUT: {sys.argv[1]!r}", file=sys.stderr)
+    raise SystemExit(3)
 
-printf '%s\n' "$out"
+process = subprocess.Popen(
+    [adapter],
+    stdin=sys.stdin.buffer,
+    stdout=subprocess.PIPE,
+    stderr=sys.stderr.buffer,
+    start_new_session=True,
+)
+
+def group_exists():
+    process.poll()
+    try:
+        os.killpg(process.pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return process.poll() is None
+    return True
+
+def stop_group(initial_signal):
+    try:
+        os.killpg(process.pid, initial_signal)
+    except ProcessLookupError:
+        pass
+
+    deadline = time.monotonic() + 1.0
+    while group_exists() and time.monotonic() < deadline:
+        time.sleep(0.05)
+    if group_exists():
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    try:
+        process.wait(timeout=1.0)
+    except subprocess.TimeoutExpired:
+        pass
+
+def handle_signal(signum, _frame):
+    stop_group(signum)
+    raise SystemExit(128 + signum)
+
+signal.signal(signal.SIGINT, handle_signal)
+signal.signal(signal.SIGTERM, handle_signal)
+
+try:
+    output, _ = process.communicate(timeout=timeout_s)
+except subprocess.TimeoutExpired:
+    stop_group(signal.SIGTERM)
+    print(
+        f"moa-call: adapter timed out after {sys.argv[1]}s: {adapter}",
+        file=sys.stderr,
+    )
+    raise SystemExit(124)
+
+returncode = process.returncode
+if returncode != 0:
+    print(f"moa-call: adapter failed (exit {returncode}): {adapter}", file=sys.stderr)
+    raise SystemExit(returncode)
+if not output.strip():
+    print(f"moa-call: adapter returned empty output: {adapter}", file=sys.stderr)
+    raise SystemExit(5)
+
+sys.stdout.buffer.write(output.rstrip(b"\n") + b"\n")
+' "$timeout_s" "$adapter"
