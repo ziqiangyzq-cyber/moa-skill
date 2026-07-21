@@ -2,13 +2,20 @@
 set -euo pipefail
 
 prompt="$(cat)"
-out_file="$(mktemp)"
-trap 'rm -f "$out_file"' EXIT
+work_dir="$(mktemp -d)"
+out_file="$work_dir/last-message.txt"
+trap 'rm -rf "$work_dir"' EXIT
 
 args=(
   exec
-  --dangerously-bypass-approvals-and-sandbox
+  --sandbox
+  read-only
+  --ephemeral
+  --ignore-user-config
+  --ignore-rules
   --skip-git-repo-check
+  --cd
+  "$work_dir"
   --output-last-message
   "$out_file"
 )

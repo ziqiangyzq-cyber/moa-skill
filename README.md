@@ -87,6 +87,12 @@ Optional env vars for the local CLI adapters:
 - `MOA_CLAUDE_MODEL` to force a specific Claude model
 - `MOA_CODEX_MODEL` to force a specific Codex model
 
+The Claude CLI example disables all built-in tools. The Codex CLI example runs
+ephemerally in a fresh empty directory with a read-only sandbox and ignores user
+configuration and rules. For the strongest isolation, prefer the Codex-native
+tool-free Responses adapter installed by `scripts/install-codex.sh`; the CLI
+example is retained only as a compatibility fallback.
+
 ## Codex installation (isolated)
 
 The repository root remains the Claude-oriented skill. To compose a separate

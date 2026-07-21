@@ -5,10 +5,11 @@ prompt="$(cat)"
 
 args=(
   -p
+  --bare
   --output-format
   text
-  --permission-mode
-  bypassPermissions
+  --tools
+  ""
 )
 
 if [ -n "${MOA_CLAUDE_MODEL:-}" ]; then
