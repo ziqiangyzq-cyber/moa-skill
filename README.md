@@ -86,6 +86,7 @@ Optional env vars for the local CLI adapters:
 
 - `MOA_CLAUDE_MODEL` to force a specific Claude model
 - `MOA_CODEX_MODEL` to force a specific Codex model
+- `MOA_CODEX_BIN` to select a specific Codex executable when several versions are installed
 
 The Claude CLI example disables all built-in tools. The Codex CLI example runs
 ephemerally in a fresh empty directory with a read-only sandbox and ignores user
