@@ -8,6 +8,10 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class CliAdapterDefaultTests(unittest.TestCase):
+    def test_bootstrap_protects_private_roster(self) -> None:
+        text = (ROOT / "scripts/bootstrap-local.sh").read_text(encoding="utf-8")
+        self.assertIn('chmod 600 "$root/roster.yaml"', text)
+
     def test_claude_worker_has_no_tools_or_permission_bypass(self) -> None:
         text = (ROOT / "adapters/examples/claude-code.sh").read_text(encoding="utf-8")
         self.assertIn('--tools\n  ""', text)

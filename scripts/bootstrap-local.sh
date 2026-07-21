@@ -45,6 +45,7 @@ EOF
     echo "Created roster.yaml from roster.example.yaml."
   fi
 fi
+chmod 600 "$root/roster.yaml"
 
 echo "Bootstrap complete."
 echo "Next: $root/bin/moa-preflight $root/roster.yaml"
