@@ -20,11 +20,36 @@ prompt="$(cat)"
 body="$(jq -n --arg model "$model" --arg prompt "$prompt" \
   '{model:$model, messages:[{role:"user", content:$prompt}]}')"
 
-response="$(curl -sS --fail-with-body -m "${MOA_HTTP_TIMEOUT:-120}" \
+resp_file="$(mktemp)"
+err_file="$(mktemp)"
+trap 'rm -f "$resp_file" "$err_file"' EXIT
+
+set +e
+status="$(curl -sS -m "${MOA_HTTP_TIMEOUT:-120}" \
+  -o "$resp_file" \
+  -w '%{http_code}' \
   "${api_base%/}/v1/text/chatcompletion_v2" \
   -H "Authorization: Bearer $MOA_MINIMAX_API_KEY" \
   -H "Content-Type: application/json" \
-  -d "$body")"
+  -d "$body" \
+  2>"$err_file")"
+rc=$?
+set -e
+if [ "$rc" -ne 0 ]; then
+  echo "minimax adapter: request failed (curl exit $rc)" >&2
+  sed -n '1,20p' "$err_file" >&2
+  exit "$rc"
+fi
+case "$status" in
+  2??)
+    ;;
+  *)
+    echo "minimax adapter: HTTP $status" >&2
+    exit 22
+    ;;
+esac
+
+response="$(cat "$resp_file")"
 
 api_status="$(printf '%s' "$response" | jq -r '.base_resp.status_code // 0')"
 if [ "$api_status" != "0" ]; then

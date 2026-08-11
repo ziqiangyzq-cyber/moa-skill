@@ -29,7 +29,18 @@ Keep adapters from **different vendors** — that is the entire point of this to
 - `examples/openai-compatible.sh` — any OpenAI-compatible HTTP endpoint or proxy
 - `examples/claude-code.sh` — local `claude` CLI worker
 - `examples/codex-cli.sh` — local `codex exec` worker
+- `examples/agy-cli.sh` — local Antigravity CLI worker (`MOA_AGY_MODEL` required)
+- `examples/grok-cli.sh` — local Grok CLI worker (optional `MOA_GROK_MODEL`)
 - `examples/cli-wrapper.sh` — generic local CLI skeleton
+
+The Codex example also accepts `MOA_CODEX_EFFORT` and forwards it as the
+`model_reasoning_effort` config override. This supports any effort value accepted by the
+installed Codex CLI and selected model.
+
+**AGY privacy caveat:** AGY 1.1 print mode has no prompt-file/stdin prompt option, so the
+example must bridge MoA stdin to AGY's `--print <prompt>` argument. On a shared host, another
+user may briefly see that argument in the process list. Do not use this adapter for confidential
+prompts there; prefer a dedicated API adapter or a CLI release with prompt-file/stdin support.
 
 If your install path came from a GitHub ZIP or another copy step that dropped executable bits,
 run `bash scripts/bootstrap-local.sh` from the repo root before the first smoke test.

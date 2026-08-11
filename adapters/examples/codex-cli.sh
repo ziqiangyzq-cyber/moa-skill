@@ -31,6 +31,10 @@ if [ -n "${MOA_CODEX_MODEL:-}" ]; then
   args+=(--model "$MOA_CODEX_MODEL")
 fi
 
+if [ -n "${MOA_CODEX_EFFORT:-}" ]; then
+  args+=(-c "model_reasoning_effort=$MOA_CODEX_EFFORT")
+fi
+
 set +e
 printf '%s' "$prompt" | "$codex_bin" "${args[@]}" - >/dev/null 2>"$err_file"
 rc=$?

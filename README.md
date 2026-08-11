@@ -86,7 +86,10 @@ Optional env vars for the local CLI adapters:
 
 - `MOA_CLAUDE_MODEL` to force a specific Claude model
 - `MOA_CODEX_MODEL` to force a specific Codex model
+- `MOA_CODEX_EFFORT` to set a Codex reasoning effort supported by that model
 - `MOA_CODEX_BIN` to select a specific Codex executable when several versions are installed
+- `MOA_AGY_MODEL` and optional `MOA_AGY_EFFORT` for the Antigravity CLI example
+- `MOA_GROK_MODEL` for the Grok CLI example (otherwise it uses the CLI default)
 
 The Claude CLI example disables all built-in tools. The Codex CLI example runs
 ephemerally in a fresh empty directory with a read-only sandbox and ignores user

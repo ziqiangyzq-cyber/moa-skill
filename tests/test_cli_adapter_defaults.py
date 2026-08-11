@@ -54,6 +54,53 @@ class CliAdapterDefaultTests(unittest.TestCase):
         self.assertEqual(result.returncode, 17)
         self.assertIn("codex adapter failed (exit 17)", result.stderr)
 
+    def test_codex_worker_forwards_reasoning_effort(self) -> None:
+        adapter = ROOT / "adapters/examples/codex-cli.sh"
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            fake = root / "fake-codex"
+            args_file = root / "args.txt"
+            fake.write_text(
+                "#!/usr/bin/env bash\n"
+                "set -euo pipefail\n"
+                ': > "$MOA_TEST_ARGS_FILE"\n'
+                "out_file=''\n"
+                "while [ \"$#\" -gt 0 ]; do\n"
+                "  printf '%s\\n' \"$1\" >> \"$MOA_TEST_ARGS_FILE\"\n"
+                "  if [ \"$1\" = '--output-last-message' ]; then\n"
+                "    shift\n"
+                "    out_file=\"$1\"\n"
+                "    printf '%s\\n' \"$1\" >> \"$MOA_TEST_ARGS_FILE\"\n"
+                "  fi\n"
+                "  shift\n"
+                "done\n"
+                "printf 'CODEX_OK\\n' > \"$out_file\"\n",
+                encoding="utf-8",
+            )
+            fake.chmod(fake.stat().st_mode | stat.S_IXUSR)
+            env = {
+                **os.environ,
+                "MOA_CODEX_BIN": str(fake),
+                "MOA_CODEX_MODEL": "gpt-test",
+                "MOA_CODEX_EFFORT": "ultra",
+                "MOA_TEST_ARGS_FILE": str(args_file),
+            }
+            result = subprocess.run(
+                [str(adapter)],
+                input="test prompt",
+                text=True,
+                capture_output=True,
+                env=env,
+                check=False,
+            )
+
+            args = args_file.read_text(encoding="utf-8").splitlines()
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, "CODEX_OK\n")
+        self.assertIn("gpt-test", args)
+        self.assertIn("model_reasoning_effort=ultra", args)
+
 
 if __name__ == "__main__":
     unittest.main()
