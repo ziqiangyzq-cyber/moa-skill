@@ -22,3 +22,7 @@ endpoint, model name, or credential is embedded in the repository.
 Bootstrap may create a local Claude CLI adapter when `claude` is installed.
 Review `roster.yaml` before the first run and keep every vendor credential in
 the environment, never in the roster.
+
+Worker calls default to a 300-second deadline. Set `MOA_TIMEOUT` for a one-off
+override, or declare `timeout_seconds` on a roster worker when a specific model
+needs a longer bounded deadline.

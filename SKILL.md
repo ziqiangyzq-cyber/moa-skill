@@ -64,7 +64,8 @@ Fire it on questions that are actually worth that.
 
 ### R1 — propose (parallel, independent, blind)
 - For each worker with role `propose`, send the Phase-0 input through its adapter using
-  `bin/moa-call <adapter> < prompt`. Use `prompts/proposer.md` as the wrapper. Run them in
+  `bin/moa-call <adapter> < prompt`. If the worker declares `timeout_seconds`, pass it as
+  `MOA_TIMEOUT=<timeout_seconds>` for that call. Use `prompts/proposer.md` as the wrapper. Run them in
   parallel (separate Bash calls in one message, or spawn same-family models via your Agent tool).
 - Each proposal must contain: **claim / reasoning / confidence / "what would change my mind"**.
 - **Integrity gate:** `moa-call` fails non-zero on empty/timeout. If a worker fails, do NOT
@@ -77,8 +78,10 @@ Fire it on questions that are actually worth that.
 - **Do not show the draft to the user yet.** It is a disposable strawman.
 
 ### R2 — adversarial critique (default-ON)
-- Show the draft to **all** workers, **stripped of authority** — present it as "a candidate
+- Show the draft to **each worker with role `critique`**, **stripped of authority** — present it as "a candidate
   answer, possibly wrong", authored anonymously. Use `prompts/critique.md`.
+- Honor a critic's roster `timeout_seconds` through `MOA_TIMEOUT` just as in R1. Keep unusually
+  expensive critics off the proposal role and send them only the compressed disagreement crux.
 - For the external-vendor worker via `moa-call`, **compress the draft to the disagreement
   crux first** — do not stream the full long draft into a CLI that drops long inputs.
 - Each critic finds ERRORS / OMISSIONS / defends an overruled position / flags

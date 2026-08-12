@@ -26,6 +26,9 @@ class MoaCallTests(unittest.TestCase):
         path.chmod(0o755)
         return path
 
+    def test_default_timeout_is_long_enough_for_reasoning_workers(self):
+        self.assertIn('${MOA_TIMEOUT:-300}', MOA_CALL.read_text(encoding="utf-8"))
+
     def test_success_returns_adapter_output(self):
         adapter = self.make_adapter("cat >/dev/null\nprintf WRAPPER_OK\n")
         result = subprocess.run(

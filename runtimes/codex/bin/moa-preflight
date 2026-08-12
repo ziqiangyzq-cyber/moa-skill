@@ -16,7 +16,7 @@ anything outside that format (flow maps, anchors, merge keys, a worker missing n
 rather than silently mis-reading a safety-critical field. Install PyYAML for full YAML:
 `pip install pyyaml`.
 """
-import sys, os, re
+import math, os, re, sys
 
 def die(msg, code=2):
     print(f"moa-preflight: {msg}", file=sys.stderr)
@@ -54,7 +54,8 @@ def _normalize(data, path):
         if isinstance(role, str):
             role = [role]
         norm.append({"name": w.get("name"), "vendor": w.get("vendor"),
-                     "adapter": w.get("adapter"), "role": list(role)})
+                     "adapter": w.get("adapter"), "role": list(role),
+                     "timeout_seconds": w.get("timeout_seconds")})
     return norm, data.get("aggregator"), data.get("final_review")
 
 def _minimal_parse(raw):
@@ -109,7 +110,8 @@ def _minimal_parse(raw):
                 f"(got {w!r}); install PyYAML (`pip install pyyaml`) for reliable parsing", 3)
         role = w.get("role") or []
         norm.append({"name": name, "vendor": vendor,
-                     "adapter": w.get("adapter"), "role": role})
+                     "adapter": w.get("adapter"), "role": role,
+                     "timeout_seconds": w.get("timeout_seconds")})
     return norm, agg, fr
 
 def _scalar(v):
@@ -135,6 +137,7 @@ def main():
         vendor = worker.get("vendor")
         adapter = worker.get("adapter")
         roles = worker.get("role") or []
+        timeout_seconds = worker.get("timeout_seconds")
         if not name or not vendor:
             die(f"worker #{index} is missing name/vendor")
         if name in by_name:
@@ -142,6 +145,15 @@ def main():
         unknown_roles = set(roles) - allowed_roles
         if unknown_roles:
             die(f"worker {name} has unknown role(s): {', '.join(sorted(unknown_roles))}")
+        if timeout_seconds is not None:
+            if isinstance(timeout_seconds, bool):
+                die(f"worker {name} timeout_seconds must be a positive number")
+            try:
+                timeout_seconds = float(timeout_seconds)
+            except (TypeError, ValueError):
+                die(f"worker {name} timeout_seconds must be a positive number")
+            if not math.isfinite(timeout_seconds) or timeout_seconds <= 0:
+                die(f"worker {name} timeout_seconds must be a positive number")
         if not adapter or adapter == "agent" or adapter.startswith("agent:"):
             die(f"worker {name} requires a file-backed adapter in the Codex-local roster")
         adapter_path = adapter if os.path.isabs(adapter) else os.path.join(root, adapter)
@@ -166,9 +178,15 @@ def main():
 
     warnings = []
 
+    proposers = [w for w in workers if "propose" in (w.get("role") or [])]
+    critics = [w for w in workers if "critique" in (w.get("role") or [])]
+    if not proposers:
+        die("no worker has the required `propose` role")
+    if not critics:
+        die("no worker has the required `critique` role")
     active = [w for w in workers
               if any(r in (w.get("role") or []) for r in ("propose", "critique"))]
-    vendors = [w.get("vendor", "?") for w in active]
+    vendors = [str(w.get("vendor") or "?").strip().casefold() for w in active]
     distinct = set(vendors)
     if len(distinct) < 2:
         v = next(iter(distinct)) if distinct else "?"
@@ -188,8 +206,8 @@ def main():
                 f"Diversity is weak: that lineage's blind spots dominate the committee "
                 f"(and the aggregator likely shares them). Prefer one model per vendor.")
 
-    av = by_name[aggregator]["vendor"]
-    fv = by_name[final_review]["vendor"]
+    av = str(by_name[aggregator]["vendor"]).strip().casefold()
+    fv = str(by_name[final_review]["vendor"]).strip().casefold()
     if av == fv:
         warnings.append(
             f"aggregator ({aggregator}) and final_review ({final_review}) are both "

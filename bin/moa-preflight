@@ -16,7 +16,7 @@ anything outside that format (flow maps, anchors, merge keys, a worker missing n
 rather than silently mis-reading a safety-critical field. Install PyYAML for full YAML:
 `pip install pyyaml`.
 """
-import sys, os, re
+import math, os, re, sys
 
 def die(msg, code=2):
     print(f"moa-preflight: {msg}", file=sys.stderr)
@@ -54,7 +54,8 @@ def _normalize(data, path):
         if isinstance(role, str):
             role = [role]
         norm.append({"name": w.get("name"), "vendor": w.get("vendor"),
-                     "adapter": w.get("adapter"), "role": list(role)})
+                     "adapter": w.get("adapter"), "role": list(role),
+                     "timeout_seconds": w.get("timeout_seconds")})
     return norm, data.get("aggregator"), data.get("final_review")
 
 def _minimal_parse(raw):
@@ -109,7 +110,8 @@ def _minimal_parse(raw):
                 f"(got {w!r}); install PyYAML (`pip install pyyaml`) for reliable parsing", 3)
         role = w.get("role") or []
         norm.append({"name": name, "vendor": vendor,
-                     "adapter": w.get("adapter"), "role": role})
+                     "adapter": w.get("adapter"), "role": role,
+                     "timeout_seconds": w.get("timeout_seconds")})
     return norm, agg, fr
 
 def _scalar(v):
@@ -128,12 +130,35 @@ def main():
     if not workers:
         die("no workers found in roster", 2)
 
-    by_name = {w["name"]: w for w in workers}
     warnings = []
+
+    by_name = {}
+    for worker in workers:
+        name = worker.get("name")
+        if name in by_name:
+            warnings.append(f"duplicate worker name: {name}")
+        timeout_seconds = worker.get("timeout_seconds")
+        if timeout_seconds is not None:
+            try:
+                parsed_timeout = float(timeout_seconds)
+            except (TypeError, ValueError):
+                parsed_timeout = float("nan")
+            if (isinstance(timeout_seconds, bool) or
+                    not math.isfinite(parsed_timeout) or parsed_timeout <= 0):
+                warnings.append(
+                    f"worker {name} timeout_seconds must be a positive number")
+        by_name[name] = worker
+
+    proposers = [w for w in workers if "propose" in (w.get("role") or [])]
+    critics = [w for w in workers if "critique" in (w.get("role") or [])]
+    if not proposers:
+        warnings.append("no worker has the required `propose` role")
+    if not critics:
+        warnings.append("no worker has the required `critique` role")
 
     active = [w for w in workers
               if any(r in (w.get("role") or []) for r in ("propose", "critique"))]
-    vendors = [w.get("vendor", "?") for w in active]
+    vendors = [str(w.get("vendor") or "?").strip().casefold() for w in active]
     distinct = set(vendors)
     if len(distinct) < 2:
         v = next(iter(distinct)) if distinct else "?"
@@ -154,8 +179,8 @@ def main():
                 f"(and the aggregator likely shares them). Prefer one model per vendor.")
 
     if aggregator and final_review:
-        av = (by_name.get(aggregator) or {}).get("vendor")
-        fv = (by_name.get(final_review) or {}).get("vendor")
+        av = str((by_name.get(aggregator) or {}).get("vendor") or "").strip().casefold()
+        fv = str((by_name.get(final_review) or {}).get("vendor") or "").strip().casefold()
         if av and fv and av == fv:
             warnings.append(
                 f"aggregator ({aggregator}) and final_review ({final_review}) are both "

@@ -90,6 +90,8 @@ Optional env vars for the local CLI adapters:
 - `MOA_CODEX_BIN` to select a specific Codex executable when several versions are installed
 - `MOA_AGY_MODEL` and optional `MOA_AGY_EFFORT` for the Antigravity CLI example
 - `MOA_GROK_MODEL` for the Grok CLI example (otherwise it uses the CLI default)
+- `MOA_TIMEOUT` to override the 300-second default worker deadline. A worker may also
+  declare `timeout_seconds` in `roster.yaml`; the orchestrator passes it for that call.
 
 The Claude CLI example disables all built-in tools. The Codex CLI example runs
 ephemerally in a fresh empty directory with a read-only sandbox and ignores user
